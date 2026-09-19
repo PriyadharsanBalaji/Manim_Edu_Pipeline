@@ -1,0 +1,15 @@
+Orienting Yourself: The Use of 
+Coordinates
+1.1 Introduction
+A system of coordinates is a structured framework (like the grid lines on 
+a map or graph paper) that enables us to use numbers to describe the 
+exact physical locations of points or objects. 
+The idea of ‘grid-based thinking’ and the geometry required to 
+define the locations of points in space—indeed has deep roots in 
+Bhārat. The first systematic use of grids occurred thousands of years 
+ago — on a massive urban scale—in the Sindhu-Sarasvatī Civilisation, 
+where city streets were constructed with striking precision in 
+North–South and East–West directions at uniform distances of about 
+10 metres apart. This was a coordinate system in practice: a merchant 
+could find a shop or a warehouse by counting North–South and 
+East–West 
