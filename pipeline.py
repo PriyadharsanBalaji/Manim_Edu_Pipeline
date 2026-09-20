@@ -27,6 +27,8 @@ def run_pipeline(
     quality: str = None,
     storyboard_model: str = None,
     manim_model: str = None,
+    chunk_index: int = 0,
+    total_chunks: int = 1,
 ) -> dict:
     """
     End-to-end pipeline: PDF → educational Manim video (30-60 min).
@@ -41,6 +43,8 @@ def run_pipeline(
         quality:          Manim render quality (l/m/h/k)
         storyboard_model: Override storyboard LLM model name
         manim_model:      Override manim-coder model name
+        chunk_index:      Index of the chunk to process (0-based)
+        total_chunks:     Total number of chunks to split the book into
 
     Returns:
         Dict with pipeline results
@@ -88,7 +92,26 @@ def run_pipeline(
                 chapter_content = json.load(f)
         else:
             from stages.pdf_extractor import extract_pdf
-            chapter_content = extract_pdf(str(pdf_path), output_path=chapter_content_file)
+            chapter_content = extract_pdf(str(pdf_path), output_path=None)
+
+            if total_chunks > 1:
+                sections = chapter_content.get("sections", [])
+                if sections:
+                    chunk_size = max(1, len(sections) // total_chunks)
+                    start_idx = chunk_index * chunk_size
+                    end_idx = start_idx + chunk_size if chunk_index < total_chunks - 1 else len(sections)
+                    
+                    # Ensure we don't go out of bounds if total_chunks > len(sections)
+                    start_idx = min(start_idx, len(sections))
+                    end_idx = min(end_idx, len(sections))
+                    
+                    chunked_sections = sections[start_idx:end_idx]
+                    chapter_content["sections"] = chunked_sections
+                    chapter_content["full_text"] = "\n\n".join(s.get("content", "") for s in chunked_sections)
+                    chapter_content["chapter_title"] = f"{chapter_content.get('chapter_title', 'Chapter')} (Part {chunk_index + 1}/{total_chunks})"
+
+            with open(chapter_content_file, "w", encoding="utf-8") as f:
+                json.dump(chapter_content, f, indent=2, ensure_ascii=False)
 
         print(f"✓ Chapter: {chapter_content.get('chapter_title', 'Unknown')}")
         print(f"  Pages: {chapter_content.get('num_pages', '?')}, "

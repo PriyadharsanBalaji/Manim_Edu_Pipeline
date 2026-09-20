@@ -34,6 +34,8 @@ import argparse
 def main():
     parser = argparse.ArgumentParser(description="Batch run the Manim pipeline.")
     parser.add_argument("--first", type=str, help="Name of the PDF file to process first (e.g., 'Integers.pdf')")
+    parser.add_argument("--whole-book", action="store_true", help="Chunk a large book to avoid context window issues")
+    parser.add_argument("--iterations-per-book", type=int, default=1, help="Number of chunks to split the book into")
     args = parser.parse_args()
 
     print("\n" + "="*60)
@@ -78,17 +80,37 @@ def main():
         start_time = time.time()
         
         try:
-            # We use default arguments. 
-            # You can change target_minutes or quality by editing these parameters.
-            result = run_pipeline(
-                pdf_path=str(pdf_path),
-                output_name=pdf_path.stem.lower().replace(" ", "_"),
-                target_minutes=45,       # default target
-                resume=True,             # resume if interrupted
-                plan_only=False,         # full run
-                start_stage=0,           # from beginning (will skip completed due to resume=True)
-                quality="m",             # medium quality 720p
-            )
+            total_chunks = args.iterations_per_book if args.whole_book else 1
+            part_videos = []
+            
+            for chunk_idx in range(total_chunks):
+                if total_chunks > 1:
+                    print(f"\n--- Processing Chunk {chunk_idx + 1}/{total_chunks} ---")
+                    output_name = f"{pdf_path.stem.lower().replace(' ', '_')}_part{chunk_idx + 1}"
+                else:
+                    output_name = pdf_path.stem.lower().replace(" ", "_")
+                    
+                result = run_pipeline(
+                    pdf_path=str(pdf_path),
+                    output_name=output_name,
+                    target_minutes=45,       # default target
+                    resume=True,             # resume if interrupted
+                    plan_only=False,         # full run
+                    start_stage=0,           # from beginning
+                    quality="m",             # medium quality 720p
+                    chunk_index=chunk_idx,
+                    total_chunks=total_chunks,
+                )
+                
+                if result and "output" in result:
+                    part_videos.append(result["output"])
+                    
+            if total_chunks > 1 and part_videos:
+                from stages.assembler import concat_final_videos
+                final_output_path = str(Path("outputs") / f"final_{pdf_path.stem.lower().replace(' ', '_')}.mp4")
+                print(f"\nConcatenating {len(part_videos)} parts into {final_output_path}...")
+                concat_final_videos(part_videos, final_output_path)
+                
             elapsed = time.time() - start_time
             print(f"\n✅ Successfully processed {pdf_path.name} in {elapsed/60:.1f} minutes")
             successes.append(pdf_path.name)

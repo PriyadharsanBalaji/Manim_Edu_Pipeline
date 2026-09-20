@@ -263,6 +263,37 @@ def _assemble_with_crossfade(
         concat_file.unlink(missing_ok=True)
 
 
+def concat_final_videos(video_paths: list[str], output_path: str) -> str:
+    """Concatenate multiple final video parts into a single video."""
+    if not video_paths:
+        raise ValueError("No videos provided to concatenate.")
+    if len(video_paths) == 1:
+        import shutil
+        shutil.copy2(video_paths[0], output_path)
+        return output_path
+    
+    ffmpeg = _find_ffmpeg()
+    output_path_obj = Path(output_path)
+    output_path_obj.parent.mkdir(parents=True, exist_ok=True)
+    
+    concat_file = output_path_obj.parent / "final_concat_list.txt"
+    with open(concat_file, "w") as f:
+        for clip in video_paths:
+            safe_path = str(Path(clip).resolve()).replace("\\", "/")
+            f.write(f"file '{safe_path}'\n")
+            
+    _assemble_concat(ffmpeg, str(concat_file), str(output_path_obj))
+    concat_file.unlink(missing_ok=True)
+    
+    if output_path_obj.exists():
+        size_mb = output_path_obj.stat().st_size / (1024 * 1024)
+        print(f"[Assembler] ✓ Concatenated final video: {output_path_obj} ({size_mb:.1f} MB)")
+    else:
+        print(f"[Assembler] ✗ Final concatenation failed")
+        
+    return str(output_path)
+
+
 def _find_ffmpeg() -> str:
     """Find ffmpeg executable."""
     # Check if ffmpeg is in PATH
