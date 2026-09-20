@@ -94,24 +94,40 @@ def run_pipeline(
             from stages.pdf_extractor import extract_pdf
             chapter_content = extract_pdf(str(pdf_path), output_path=None)
 
-            if total_chunks > 1:
+            if total_chunks > 1 or chunk_index > 0:
                 sections = chapter_content.get("sections", [])
-                if sections:
-                    chunk_size = max(1, len(sections) // total_chunks)
-                    start_idx = chunk_index * chunk_size
-                    end_idx = start_idx + chunk_size if chunk_index < total_chunks - 1 else len(sections)
+                
+                # Group sections into chunks of max ~20,000 characters to stay well within context limit
+                chunks = []
+                current_chunk = []
+                current_len = 0
+                for sec in sections:
+                    sec_len = len(sec.get("content", ""))
+                    if current_chunk and current_len + sec_len > 20000:
+                        chunks.append(current_chunk)
+                        current_chunk = [sec]
+                        current_len = sec_len
+                    else:
+                        current_chunk.append(sec)
+                        current_len += sec_len
+                if current_chunk:
+                    chunks.append(current_chunk)
+                
+                actual_total_chunks = len(chunks)
+                
+                if chunk_index >= actual_total_chunks:
+                    return {"status": "EOF", "actual_total_chunks": actual_total_chunks}
                     
-                    # Ensure we don't go out of bounds if total_chunks > len(sections)
-                    start_idx = min(start_idx, len(sections))
-                    end_idx = min(end_idx, len(sections))
-                    
-                    chunked_sections = sections[start_idx:end_idx]
-                    chapter_content["sections"] = chunked_sections
-                    chapter_content["full_text"] = "\n\n".join(s.get("content", "") for s in chunked_sections)
-                    chapter_content["chapter_title"] = f"{chapter_content.get('chapter_title', 'Chapter')} (Part {chunk_index + 1}/{total_chunks})"
+                chunked_sections = chunks[chunk_index]
+                chapter_content["sections"] = chunked_sections
+                chapter_content["full_text"] = "\n\n".join(s.get("content", "") for s in chunked_sections)
+                chapter_content["chapter_title"] = f"{chapter_content.get('chapter_title', 'Chapter')} (Part {chunk_index + 1}/{actual_total_chunks})"
+                chapter_content["actual_total_chunks"] = actual_total_chunks
 
             with open(chapter_content_file, "w", encoding="utf-8") as f:
                 json.dump(chapter_content, f, indent=2, ensure_ascii=False)
+
+        actual_total_chunks = chapter_content.get("actual_total_chunks", 1)
 
         print(f"✓ Chapter: {chapter_content.get('chapter_title', 'Unknown')}")
         print(f"  Pages: {chapter_content.get('num_pages', '?')}, "
@@ -309,6 +325,7 @@ def run_pipeline(
         "storyboard": storyboard_file,
         "total_scenes": len(rendered_files),
         "elapsed_minutes": elapsed / 60,
+        "actual_total_chunks": actual_total_chunks,
     }
 
 

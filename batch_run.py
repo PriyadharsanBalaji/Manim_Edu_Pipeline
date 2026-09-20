@@ -82,6 +82,7 @@ def main():
         try:
             total_chunks = args.iterations_per_book if args.whole_book else 1
             part_videos = []
+            actual_total = 1
             
             for chunk_idx in range(total_chunks):
                 if total_chunks > 1:
@@ -102,10 +103,17 @@ def main():
                     total_chunks=total_chunks,
                 )
                 
+                if result and result.get("status") == "EOF":
+                    actual_total = result.get("actual_total_chunks", 1)
+                    print(f"\nℹ️ Reached end of book at chunk {chunk_idx}. Total required iterations to process the entire book: {actual_total}")
+                    break
+                
                 if result and "output" in result:
                     part_videos.append(result["output"])
+                    actual_total = result.get("actual_total_chunks", 1)
                     
             if total_chunks > 1 and part_videos:
+                print(f"\nℹ️ NOTE: This book requires {actual_total} total iterations to process entirely. You requested {total_chunks} iterations, and we processed {len(part_videos)} chunks.")
                 from stages.assembler import concat_final_videos
                 final_output_path = str(Path("outputs") / f"final_{pdf_path.stem.lower().replace(' ', '_')}.mp4")
                 print(f"\nConcatenating {len(part_videos)} parts into {final_output_path}...")
